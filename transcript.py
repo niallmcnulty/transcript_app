@@ -7,7 +7,7 @@ from pydub import AudioSegment
 import math
 
 # Initialize the OpenAI client with the API key
-client = OpenAI(api_key="sk-proj-EWbPEfraqjjut0SPA9dQT3BlbkFJI6iTytfBUZdodPytNzKH")
+client = OpenAI(api_key="")
 
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB in bytes
 CHUNK_SIZE = 24 * 1024 * 1024  # 24 MB in bytes for safety margin
