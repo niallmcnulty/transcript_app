@@ -7,19 +7,24 @@ from pydub import AudioSegment
 import math
 import logging
 import atexit
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Initialize the OpenAI client with the API key from environment variable
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB in bytes
 CHUNK_SIZE = 24 * 1024 * 1024  # 24 MB in bytes for safety margin
 ALLOWED_EXTENSIONS = {'.mp3', '.mp4', '.wav', '.m4a'}
 
 def split_audio(file_path, chunk_size):
+    logger.info(f"Splitting audio file: {file_path}")
     audio = AudioSegment.from_file(file_path)
     duration = len(audio)
     chunk_duration = math.ceil((chunk_size / len(audio.raw_data)) * duration)
@@ -31,12 +36,14 @@ def split_audio(file_path, chunk_size):
             chunk.export(temp_file.name, format=file_path.suffix[1:])
             chunks.append(temp_file.name)
     
+    logger.info(f"Split into {len(chunks)} chunks")
     return chunks
 
 def cleanup_temp_files():
+    logger.info("Cleaning up temporary files")
     temp_dir = tempfile.gettempdir()
     for file in os.listdir(temp_dir):
-        if file.endswith('.mp3') or file.endswith('.mp4') or file.endswith('.wav') or file.endswith('.m4a') or file.endswith('.txt'):
+        if file.endswith(tuple(ALLOWED_EXTENSIONS)) or file.endswith('.txt'):
             os.remove(os.path.join(temp_dir, file))
 
 atexit.register(cleanup_temp_files)
@@ -57,6 +64,7 @@ def transcribe_file(file):
             full_transcript = ""
             
             for i, chunk in enumerate(chunks, 1):
+                logger.info(f"Transcribing chunk {i}/{len(chunks)}")
                 with open(chunk, "rb") as audio_file:
                     transcript = client.audio.transcriptions.create(
                         model="whisper-1", 
@@ -70,9 +78,10 @@ def transcribe_file(file):
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_file:
                 temp_file.write(full_transcript)
             
+            logger.info("Transcription complete")
             return full_transcript, temp_file.name
         else:
-            # Original transcription logic for files under 25 MB
+            logger.info("Transcribing single file")
             with open(file_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1", 
@@ -82,6 +91,7 @@ def transcribe_file(file):
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_file:
                 temp_file.write(transcript.text)
             
+            logger.info("Transcription complete")
             return transcript.text, temp_file.name
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
